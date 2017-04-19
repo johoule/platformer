@@ -18,14 +18,20 @@ font_small = pygame.font.Font(None, 32)
 font_big = pygame.font.Font(None, 64)
 
 # Images
-hero_img = pygame.image.load("assets/player_walk1.png")
+hero_img = pygame.image.load("assets/p1_walk10.png")
 hero_img = pygame.transform.scale(hero_img, (64, 64))
 
-block_img = pygame.image.load("assets/platformIndustrial_003.png")
+block_img = pygame.image.load("assets/snowMid.png")
 block_img = pygame.transform.scale(block_img, (64, 64))
 
 coin_img = pygame.image.load("assets/coin.png")
 coin_img = pygame.transform.scale(coin_img, (64, 64))
+
+background_img = pygame.image.load("assets/galaxy.png")
+
+monster_img = pygame.image.load("assets/blockerMad.png")
+monster_img = pygame.transform.scale(monster_img, (64, 64))
+
 
 # Controls
 LEFT = pygame.K_LEFT
@@ -133,16 +139,65 @@ class Coin(Entity):
     def __init__(self, x, y, image):
         super().__init__(x, y, image)
 
-class Enemy():
-    pass
+class Enemy(Entity):
+    
+    def __init__(self, x, y, image):
+        super().__init__(x, y, image)
+
+        self.vx = -2
+        self.vy = 0
+
+    def reverse(self):
+        self.vx += 1
+
+    def apply_gravity(self):
+        self.vy += 1
+
+    def check_world_edges(self, level):
+        if self.rect.left < 0:
+            self.rect.left = 0
+            self.reverse()
+        elif self.rect.right > level.width:
+            self.rect.right = level.width
+            self.reverse()
+
+    def process_blocks(self, blocks):
+        self.rect.x += self.vx
+        hit_list = pygame.sprite.spritecollide(self, blocks, False)
+
+        for block in hit_list:
+            if self.vx > 0:
+                self.rect.right = block.rect.left
+                self.reverse()
+            elif self.vx < 0:
+                self.rect.left = block.rect.right
+                self.reverse()
+
+        self.rect.y += self.vy
+        hit_list = pygame.sprite.spritecollide(self, blocks, False)
+
+        for block in hit_list:
+            if self.vy > 0:
+                self.rect.bottom = block.rect.top
+                self.vy = 0
+            elif self.vy < 0:
+                self.rect.top = block.rect.bottom
+                self.vy = 0
+
+    def update(self, level):
+
+        self.apply_gravity()
+        self.check_world_edges(level)
+        self.process_blocks(level.blocks)
 
 class Level():
-    def __init__(self, blocks, coins):
+    def __init__(self, blocks, coins, enemies):
         self.blocks = blocks
         self.coins = coins
+        self.enemies = enemies
         
         self.all_sprites = pygame.sprite.Group()
-        self.all_sprites.add(blocks, coins)
+        self.all_sprites.add(blocks, coins, enemies)
 
         self.width = 1920
         self.height = 640
@@ -192,15 +247,18 @@ class Game():
                 self.hero.stop()
 
             self.hero.update(self.level)
+            self.level.enemies.update(self.level)
             
             #Drawing
 
             offset_x, offset_y = self.calculate_offset()
             
             self.active_layer.fill(SKY_BLUE)
+            self.active_layer.blit(background_img, [0, 0])
             self.level.all_sprites.draw(self.active_layer)
+            
             self.active_layer.blit(self.hero.image, [self.hero.rect.x, self.hero.rect.y])
-
+            
             window.blit(self.active_layer, [offset_x, offset_y])
    
             # Update window
@@ -231,8 +289,11 @@ def main():
     coins.add(Coin(768, 384, coin_img))
     coins.add(Coin(256, 320, coin_img))
 
+    #make enemies
+    enemies = pygame.sprite.Group()
+    enemies.add(Enemy(640, 256, monster_img))
     # Make a level
-    level = Level(blocks, coins)
+    level = Level(blocks, coins, enemies)
 
     # Start game
     game = Game(hero, level)
